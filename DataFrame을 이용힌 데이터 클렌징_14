@@ -1,0 +1,72 @@
+
+
+14장
+DataFrame을 이용힌 데이터 클렌징
+
+Pandas로 CSV 읽기
+
+CSV : 데이터를 쉼표로 구분하여 저장한 데이터이며, 사용이 편리하여 데이터 분석 등에 자주
+사용한다.
+
+예:
+impot pandas as pd
+
+df = pd.read_csv("http://archive.ics.uci.edu/ml/machine-learning-datasets/wine/wine.data", header=None)
+
+ Pandas로 CSV 만들기
+
+import pandas as pd
+
+data = {"city" : ["Nagano", "Sydney", "Salt Lake City", "Athens"], "year" : [1998, 2000, 2020, 2002],
+            "season" : ["winter", "summer", "winter", "summer", "winter", "summer"]}
+df = pd.DataFrame(data)
+
+# df.to_csv("csv1.csv") # csv1.csv  라는 파일로 저장.
+
+행 추가 : append(DataFrame 변수) 
+데이터 정렬 : sort_values(by="열 이름")
+행 번호를 다시 매기려면 : reset_index(drop=True)
+
+데이터가 누락된 행(MaN을 가진 행)을 통째로 지우는 것 : 리스트와이즈 삭제
+: dropna()
+
+결손이 적은 열만 남기는 것 : 페어와이즈 삭제
+: 예 - sample_data_fram[[0,1,2]].dropna()
+
+결측치 보완(NaN부분에 대체할 데이터를 대입)
+: sample_data_fram.fillna(method="ffill")
+앞에 있는 데이터로 NaN부분을 채운다.
+
+결측치 보완(평균값 대입법)
+: 결측치를 열(또는 행)의 평균값으로 보충하는 방법
+--> sample_data_fram.iloc[5:, 3] = NA
+--> sample_data_fram.fillna(sample_data_fram.mean())
+
+데이터 요약
+키별 통계량 산출 : Magnesium 함수 이용
+: print(df["Magnesium"].mean())
+
+중복 데이터 삭제
+: duplicated() 메서드를 사용하면 중복된 행을 True로 표시한다.
+drop_duplicated() 메서드를 사용하면 중복 데이터가 삭제 된 후의 데이터를 보여준다.
+
+매핑 : 공통의 키 역할을 하는 데이터 값을 가져오는 처리
+
+import pandas as pd
+from pandas import DataFrame
+
+attri_data1 = {"ID" : ["100", "101", "102", "103"], "city": ["서울", "부산", "대전", "광주"],
+                    "birth_year" : [1990, 1989, 1992, 1997],
+                    "name" : ["영이", "순돌", "태양", "션"]}
+attri_data_frame1 = DataFrame(attri_data1)
+
+attri_data_frame1
+
+매핑 처리
+: 처음에 준비 했던 attri_data_frame1의 city 칼럼을 기반으로 하여 대응하는 지역명을 새 컬럼으로 추가
+
+구간 분할
+: 이산 범위의 데이터를 분할하여 집계할 경우에 사용
+: 구간을 분할할 리스트를 준비하고, pandas의 cut()함수를 사용한다.
+: 각 구간의 수를 집계할 때 - value_count()를 사용
+
