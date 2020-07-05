@@ -1,0 +1,363 @@
+인공 신경망 : 딥러닝의 핵심
+
+퍼셉트론 : 가장 간단한 인공 신경망 구조중 하나
+
+가장 널리 사영되는 계단 함수 : 헤비사이드 함수
+하나의 TLU는 간단한 선형 이진 분류 문제에서 사용 가능
+입력의 선형 조합을 계산해서 그 결과가 임곗값을 넘으면 양성 클래스를 출력한다.
+
+
+다중 퍼셉트론 : 통과층 하나와 은닉층이라 불리는 하나 이상의 TLU층과 
+마지막 출력층으로 구성
+
+회귀/ 분류에서 사용 가능
+출력은 0 과 1사이의 실수이다.
+
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+from sklearn.linear_model import Perceptron
+path = 'C:/Users/dnsrl/Downloads/data/'
+os.chdir(path)
+
+# 10.1.3 퍼셉트론
+iris = load_iris()
+x = iris.data[:, (2, 3)]
+y = (iris.target == 0).astype(np.int)
+
+per_clf = Perceptron()
+per_clf.fit(x, y)
+
+y_pred = per_clf.predict([[2, 0.2]])
+print(y_pred)                   # [1]
+
+
+# 10.2.1 텐서플로2 설치
+import tensorflow as tf
+from tensorflow import keras
+print(tf.__version__)           # 2.1.0
+print(keras.__version__)        # 2.2.4-tf
+
+-------------------------------
+이미지 분류기
+
+fashion_mnist = keras.datasets.fashion_mnist
+(X_train_full, y_train_full), (X_test, y_test) = fashion_mnist.load_data()
+print(X_train_full.shape)       # (60000, 28, 28)
+print(X_train_full.dtype)       # uint8
+
+X_valid, X_train = X_train_full[:5000] / 255., X_train_full[5000:] / 255.
+y_valid, y_train = y_train_full[:5000], y_train_full[5000:]
+X_test = X_test / 255.
+
+class_names = ["T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
+               "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"]
+
+print(class_names[y_train[0]])      # Coat
+
+model = keras.models.Sequential()
+model.add(keras.layers.Flatten(input_shape = [28, 28]))
+model.add(keras.layers.Dense(300, activation = "relu"))
+model.add(keras.layers.Dense(100, activation = "relu"))
+model.add(keras.layers.Dense(10, activation = "softmax"))
+
+
+model = keras.models.Sequential([
+    keras.layers.Flatten(input_shape=[28, 28]),
+    keras.layers.Dense(300, activation="relu"),
+    keras.layers.Dense(100, activation="relu"),
+    keras.layers.Dense(10, activation="softmax")
+])
+
+model.summary()
+print(model.layers)
+'''
+[<tensorflow.python.keras.layers.core.Flatten object at 0x00000213366BD808>,
+ <tensorflow.python.keras.layers.core.Dense object at 0x00000213366B1948>,
+ <tensorflow.python.keras.layers.core.Dense object at 0x00000213366B1FC8>,
+ <tensorflow.python.keras.layers.core.Dense object at 0x00000213366C7248>]
+'''
+
+hidden1 = model.layers[1]
+print(hidden1.name)         # dense_3
+print(model.get_layer(hidden1.name) is hidden1)        # True
+
+weights, biases = hidden1.get_weights()
+print(weights)
+print(weights.shape)        # (784, 300)
+print(biases)
+print(biases.shape)         # (300,)
+
+model.compile(loss = keras.losses.sparse_categorical_crossentropy,
+              optimizer = keras.optimizers.SGD(),
+              metrics = [keras.metrics.sparse_categorical_accuracy])
+
+history = model.fit(X_train, y_train, epochs = 30,
+                    validation_data = (X_valid, y_valid))
+print(history.params)
+'''
+{'batch_size': 32, 'epochs': 30, 'steps': 1719,
+ 'samples': 55000, 'verbose': 0, 'do_validation': True,
+ 'metrics': ['loss', 'sparse_categorical_accuracy', 'val_loss', 'val_sparse_categorical_accuracy']}
+'''
+print(history.epoch)
+'''
+[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+ 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+ 21, 22, 23, 24, 25, 26, 27, 28, 29]
+'''
+print(history.history.keys())
+'''
+dict_keys(['loss', 'sparse_categorical_accuracy', 'val_loss', 'val_sparse_categorical_accuracy'])
+'''
+
+pd.DataFrame(history.history).plot(figsize = (8, 5))
+plt.grid(True)
+plt.gca().set_ylim(0, 1)
+# plt.show()
+
+model.evaluate(X_test, y_test)
+
+X_new = X_test[:3]
+y_proba = model.predict(X_new)
+y_proba.round(2)
+
+y_pred = model.predict_classes(X_new)
+print(y_pred)           # [9 2 1]
+
+np.array(class_names)[y_pred]
+print(np.array(class_names)[y_pred])    # ['Ankle boot' 'Pullover' 'Trouser']
+
+y_new = y_test[:3]
+print(y_new)            # [9 2 1]
+
+
+
+--------------------------
+
+회귀용 - 캘리포니아 주택 가격
+
+
+from sklearn.datasets import fetch_california_housing
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+housing = fetch_california_housing()
+
+X_train_full, X_test, y_train_full, y_test = train_test_split(
+    housing.data, housing.target, random_state = 42)
+X_train, X_valid, y_train, y_valid = train_test_split(
+    X_train_full, y_train_full, random_state = 42)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_valid = scaler.transform(X_valid)
+X_test = scaler.transform(X_test)
+
+model = keras.models.Sequential([
+    keras.layers.Dense(30, activation = "relu", input_shape = X_train.shape[1:]),
+    keras.layers.Dense(1)
+])
+model.compile(loss = "mean_squared_error", optimizer = 'sgd')
+history = model.fit(X_train, y_train, epochs = 20,
+                    validation_data = (X_valid, y_valid))
+mse_test = model.evaluate(X_test, y_test)
+X_new = X_test[:3]
+y_pred = model.predict(X_new)
+print(y_pred)
+
+-------------------------------------
+
+규제를 위해 보조 출력 추가
+
+input_A = keras.layers.Input(shape = [5], name = "wide_input")
+input_B = keras.layers.Input(shape = [6], name = "deep_input")
+hidden1 = keras.layers.Dense(30, activation = "relu")(input_B)
+hidden2 = keras.layers.Dense(30, activation = "relu")(hidden1)
+concat = keras.layers.concatenate([input_A, hidden2])
+
+보조 출력(위는 이전과 동일)
+
+output = keras.layers.Dense(1, name = "main_output")(concat)
+aux_output = keras.layers.Dense(1, name = "aux_output")(hidden2)
+model = keras.models.Model(inputs = [input_A, input_B],
+                           outputs = [output, aux_output])
+
+model.compile(loss = ["mse", "mse"],
+              loss_weights = [0.9, 0.1],
+              optimizer = 'sgd')
+
+history = model.fit([X_train_A, X_train_B], [y_train, y_train], epochs = 20,
+                    validation_data = ([X_valid_A, X_valid_B], [y_valid, y_valid]))
+
+# 모델 평가 -> 개별 손실과 총 손실을 return
+
+total_loss, main_loss, aux_loss = model.evaluate(
+    [X_test_A, X_test_B], [y_test, y_test])
+y_pred_main, y_pred_aux = model.predict([X_new_A, X_new_B])
+print(y_pred_main)
+print(y_pred_aux)
+
+-----------------------------------------------
+
+서브클래싱 API로 동적 모델 만들기
+
+class WideAndDeepModel(keras.models.Model):
+    def __init__(self, units = 30, activation = "relu", **kwargs):
+        super().__init__(**kwargs)
+        self.hidden1 = keras.layers.Dense(units, activation = activation)
+        self.hidden2 = keras.layers.Dense(units, activation = activation)
+        self.main_output = keras.layers.Dense(1)
+        self.aux_output = keras.layers.Dense(1)
+        
+    def call(self, inputs):
+        input_A, input_B = inputs
+        hidden1 = self.hidden1(input_B)
+        hidden2 = self.hidden2(hidden1)
+        concat = keras.layers.concatenate([input_A, hidden2])
+        main_output = self.main_output(concat)
+        aux_output = self.aux_output(hidden2)
+        return main_output, aux_output
+
+model = WideAndDeepModel()
+
+------------------------------------------
+
+모델 저장과 복원
+
+model = keras.models.Sequential([
+    keras.layers.Dense(30, activation = "relu", input_shape = [8]),
+    keras.layers.Dense(30, activation = "relu"),
+    keras.layers.Dense(1)
+])
+
+model.compile(loss = "mse", optimizer = 'sgd')
+history = model.fit(X_train, y_train, epochs = 10, validation_data = (X_valid, y_valid))
+
+모델 저장
+
+model.save(path + 'my_keras_model.h5')
+
+모델 로드
+
+model = keras.models.load_model(path + 'my_keras_model.h5')
+
+
+콜백 사용
+
+cp = keras.callbacks.ModelCheckpoint(filepath = path + 'my_keras_model.h5',
+                                     save_best_only = True)
+history = model.fit(X_train, y_train, epochs = 10,
+                    validation_data = (X_valid, y_valid),
+                    callbacks = [cp])
+model = keras.models.load_model(path + 'my_keras_model.h5')
+
+조기 종료; EarlyStopping 구현
+
+es = keras.callbacks.EarlyStopping(patience = 10,
+                                   restore_best_weights = True)
+history = model.fit(X_train, y_train, epochs = 100,
+                    validation_data = (X_valid, y_valid),
+                    callbacks = [cp, es])
+
+사용자 정의 콜백; 다음 콜백은 훈련하는 동안 검증 손실과 훈련 손실의 비율을 출력함
+
+class PrintValTrainRatioCallback(keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs):
+        print("\nval/train: {:.2f}".format(logs["val_loss"] / logs["loss"]))
+
+----------------------------------------
+
+텐서보드를 이용해 시각화하기
+
+훈련하는 동안 학습 곡선을 그리거나 여러 실행간의 학습 곡선을 비교하고 계산 그래프 시각화와 훈련 통계 분석에 사용
+
+root_logdir = os.path.join(os.curdir, "my_logs")
+
+def get_run_logdir():
+    import time
+    run_id = time.strftime("run_%Y_%m_%d-%H_%M_%S")
+    return os.path.join(root_logdir, run_id)
+
+run_logdir = get_run_logdir()
+print(run_logdir)
+
+tensorboard_cb = keras.callbacks.TensorBoard(run_logdir)
+history = model.fit(X_train, y_train, epochs = 30,
+                    validation_data = (X_valid, y_valid),
+                    callbacks = [cp, tensorboard_cb])
+
+# 텐서플로는 tf.summary패키지로 저수준 API를 제공함
+# 다음 코드는 create_file, writer() 함수를 사용해 SummaryWriter를 만들고
+# with 블럭 안에서 텐서보드를 사용해 시각화 할 수 있는 스칼라, 히스토그램,
+# 이미지, 오디오, 텍스트를 기록한다
+
+----------------------------------------------------
+
+신경망 하이퍼파라미터 튜닝
+
+랜덤서치CV는 k-겹 교차 검증을 사용하기 때문에 x_val과 y_val를 사용하지 않는다.
+이 데이터는 조기 종료에만 사용된다.
+랜덤 탐색은 하드웨어와 데이터셋의 크기, 모델의 복잡도, n_iter, cv 매개변수에 따라 몇 시간이 거릴수 있다.
+
+은닉층의 개수
+: 이론적으로 은닉층이 하나인 다층 퍼셉트론이더라도 뉴런 개수가 충분하면 아주 복잡한 함수도 
+모델링할 수 있다.
+하지만 복잡한 문제에서는 파라미터 효율성이 훨씬 좋다.
+
+새로운 신경망에서 처음 몇 개 층의 가중치와 편향을 난수로 초기화하는 대신 첫번째 신경망의 층에 있는 가중치와 편향값으로 
+초기화할 수 있다. 
+즉, 전이 학습이라고 한다.
+훈련속도는 훨씬 빠르고 데이터도 훨씬 적게 필요하다.
+
+학습률 : 가장 중요한 파라미터이다.
+일반적으로 최적의 학습률은 최대 학습률의 절반 정도이다.
+
+옵티마이저 : 미니배치 경사 하강법보다 더 좋은 옵티마이저를 선택하는것도 중요하다.
+
+배치크기 : 모델 성능과 훈련 시간에 큰 영향을 준다.
+큰 배치 크기는 일반화 성능에 영향을 미치지 않고 훈련 시간을 매우 단축한다.
+
+할성화 함수 : 일반적으로 ReLU 활성화 함수가 모든 은닉층에 좋은 기본값이다.
+
+def build_model(n_hidden = 1, n_neurons = 30, learning_rate = 3e-3, input_shape = [8]):
+    model = keras.models.Sequential()
+    model.add(keras.layers.InputLayer(input_shape = input_shape))
+    for layer in range(n_hidden):
+        model.add(keras.layers.Dense(n_neurons, activation = "relu"))
+    model.add(keras.layers.Dense(1))
+    optimizer = keras.optimizers.SGD(lr = learning_rate)
+    model.compile(loss = "mse", optimizer = optimizer)
+    return model
+
+Scikit_learn 래핑
+
+keras_reg = keras.wrappers.scikit_learn.KerasRegressor(build_model)
+keras_reg.fit(X_train, y_train, epochs = 100,
+              validation_data = (X_valid, y_valid),
+              callbacks = [keras.callbacks.EarlyStopping(patience = 10)])
+mse_test = keras_reg.score(X_test, y_test)
+y_pred = keras_reg.predict(X_new)
+print(y_pred)
+
+RandomizedSearchCV
+
+from scipy.stats import reciprocal
+from sklearn.model_selection import RandomizedSearchCV
+param_distribs = {
+    "n_hidden": [0, 1, 2, 3],
+    "n_neurons": np.arange(1, 100),
+    "learning_rate": reciprocal(3e-4, 3e-2),
+}
+
+rnd_search_cv = RandomizedSearchCV(keras_reg, param_distribs,
+                                   n_iter = 10, cv = 3, verbose = 2)
+rnd_search_cv.fit(X_train, y_train, epochs = 100,
+                  validation_data = (X_valid, y_valid),
+                  callbacks = [keras.callbacks.EarlyStopping(patience = 10)])
+print(rnd_search_cv.best_params_)
+print(rnd_search_cv.best_score_)
+model = rnd_search_cv.best_estimator_.model
