@@ -1,0 +1,298 @@
+Chapter 11
+
+심층 신경망 훈련하기
+
+그레이디언트 소실과 폭주
+
+그레이디언트 소실 : 알고리즘이 하위층으로 진행될수록 그레디언트가 점 점ㅈ 작아지는 경우
+경사 하강법이 하위층의 연결 가중치를 변경하지 않은 채로 둔다면 안타깝게도 훈련이
+좋은 솔루션으로 수렴되지 않는것.
+
+그레이디언트 폭주 : 그레이디언트가 점 점 커져서 여러 층이 비정상적으로 큰 가중치로 갱신되면
+알고리즘은 발산한다.
+
+
+수렴하지 않는 활성화 함수
+
+ReLU 함수 : 특정 양숫값에 수렴하지 않다는 큰 장점이 있다.
+계산도 빠르다.
+가중치의 합이 음수이면 ReLU 함수의 그래디언트가 0이 되므로 경사 하강법이 더는 작동하지 않는다.
+이 문제를 해결하기 위해 LeakyReLU같은 ReLU 함수의 변종을 사용한다.
+
+
+ELU 함수의 단점 : (지수 함수를 사용하므로) ReLU나 그 변종들보다 계산이 느리다.
+
+
+SELU 함수 : 아주 깊은 네트워크에서 다른 활성호 함수보다 뛰어난 성능을 종종 나타낸다.
+
+layer = keras.layers.Dense(10, activation = 'selu',
+                           kernel_initializer = 'lecun_normal')
+
+배치정규화 :  각 층에서 활성화 함수를 통과하기 전이나 후에 모델에 연산을 추가
+단순하게 입력을 원점에  맞추고 정규화한 다음, 각 층에서 두개의 새로운 파라미터로 결과값의
+스케일을 조정하고 이동시킨다.
+
+model = keras.models.Sequential([
+    keras.layers.Flatten(input_shape=[28, 28]),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dense(300, activation="relu"),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dense(100, activation="relu"),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dense(10, activation="softmax")
+])
+
+
+model.summary()
+
+------------------------------
+
+첫 번째 배치 정규화 층의 파라미터 
+
+print([(var.name, var.trainable) for var in model.layers[1].variables])
+print(model.layers[1].updates)
+
+활성화 함수 전에 배치 정규화 층 추가하기
+
+model = keras.models.Sequential([
+    keras.layers.Flatten(input_shape = [28, 28]),
+    keras.layers.BatchNormalization(),
+    keras.layers.Dense(300, kernel_initializer = 'he_normal', use_bias = False),
+    keras.layers.BatchNormalization(),
+    keras.layers.Activation('elu'),
+    keras.layers.Dense(100, kernel_initializer = 'he_normal', use_bias = False),
+    keras.layers.BatchNormalization(),
+    keras.layers.Activation('elu'),
+    keras.layers.Dense(10, activation = 'softmax')
+])
+
+그레디언트 클리핑 : 그레디언트 폭주 문제를 완화하는 인기 있는 다른 방법
+역전파될 때 일정 임곗값을 넘어서지 못하게 그레디언트를 잘라내는 것
+
+optimizer = keras.optimizers.SGD(clipvalue = 1.0)
+model.compile(loss = 'mse', optimizer = optimizer)
+
+## 전이학습; 사전훈련된 층 재사용하기
+'''실행은 하지 않고 코드만 작성한다'''
+model_A = keras.models.load_model('불러올 모델')
+model_B_on_A = keras.models.Sequential(model_A.layers[:-1])
+model_B_on_A.add(keras.layers.Dense(1, activation = 'sigmoid'))
+
+# model_A와 model_B_on_A는 일부 층을 공유한다, model_B_on_A를 훈련할 때 model_A도 영향을 받음
+# 이를 원치 않는다면 층을 재사용하기 전에 model_A를 clone(복제)한다.
+model_A_clone = keras.models.clone_model(model_A)
+model_A_clone.set_weights(model_A.get_weights())        # 가중치 가져오기
+
+for layer in model_B_on_A.layers[:-1]:
+    layer.trainable = False
+
+model_B_on_A.compile(loss = 'binary_crossentropy',
+                     optimizer = 'sgd',
+                     metrics = ['accuracy'])
+
+history = model_B_on_A.fit(X_train_B, y_train_B, epochs = 4,
+                           validation_data = (X_valid_B, y_valid_B))
+
+for layer in model_B_on_A.layers[:-1]:
+    layer.trainable = True
+
+optimizer = keras.optimizers.SGD(lr = 1e-4)     # default = 1e-2
+model_B_on_A.compile(loss = 'binary_crossentropy',
+                     optimizer = optimizer,
+                     metrics = ['accuracy'])
+histrory = model_B_on_A.fit(X_train_B, y_train_B, epochs = 16,
+                            validation_data = (X_valid_B, y_valid_B))
+model_B_on_A.evaluate(X_test_B, y_test_B)
+
+--------------------------
+
+고속 옵티마이저
+
+모멘텀 최적화
+
+: 이전 그레디언트가 얼마였는지가 중요하다.
+매 반복에서 현재 그레디언트를 모멘텀 벡터에 더하고 이 값을 빼는 방식으로 가중치를 갱신한다.
+
+optimizer = keras.optimizers.SGD(lr = 1e-3, momentum = 0.9)
+
+
+네스테로프 가속 경사
+: 모멘텀 최적화의 한 변종
+
+optimizer = keras.optimizers.SGD(lr = 1e-3, momentum = 0.9, nesterov = True)
+
+
+AdaGrad
+: 가장 가파른 차원을 따라 그레디언트 벡터의 스케일을 감소
+
+optimizer = keras.optimizers.Adam(lr = 1e-3, beta_1 = 0.9, beta_2 = 0.999)
+'''
+beta_1 = 모멘텀 감쇠 하이퍼파라미터(default = 0.9)
+beta_2 = 스케일 감쇠 하이퍼파라미터(default = 0.999)
+'''
+
+RMSProp
+: AdaGrad의 문제점을 해결한 함수
+
+optimizer = keras.optimizers.RMSprop(lr = 1e-3, rho = 0.9)  # rho는 감쇠율 베타
+
+Adam 옵티마이저
+
+optimizer = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999)
+
+Adamax 옵티마이저
+
+optimizer = keras.optimizers.Adamax(lr=0.001, beta_1=0.9, beta_2=0.999)
+
+
+Nadam 옵티마이저
+
+optimizer = keras.optimizers.Nadam(lr=0.001, beta_1=0.9, beta_2=0.999)
+
+
+학습 스케줄
+: 큰 학습률로 시작하고 학습 속도가 느려질 때 학습률을 낮추면 최적의 고정 학습률보다 더 빨리
+발견할 수 있다.
+
+거듭제곱 기반 스케줄링
+
+optimizer = keras.optimizers.SGD(lr = 1e-3, decay = 1e-4)   # decay는 s의 역수
+
+지수기반 스케줄링
+
+현재 에포크를 받아 학습률을 반환하는 함수
+
+def exponential_decay_fn(epoch):
+    return 0.01 * 0.1**(epoch / 20)
+
+def exponential_decay(lr0, s):
+    def exponential_decay_fn(epoch):
+        return lr0 * 0.1**(epoch / s)
+    return exponential_decay_fn
+
+exponential_decay_fn = exponential_decay(lr0 = 0.01, s = 20)
+
+ 그 다음, 이 스케쥴링 함수를 전달하여 LearningRateScheduler 콜백을 만든다
+
+그리고 이 콜백을 fit()에 전달
+
+lr_scheduler = keras.callbacks.LearningRateScheduler(exponential_decay_fn)
+history = model.fit(X_train_scaled, y_train, callbacks = [lr_scheduler])
+
+두 번째 매개변수로 현재 학습률을 받는 스케쥴 함수
+
+def exponential_decay_fn(epoch, lr):
+    return lr * 0.1**(1 / 20)
+
+구간별 고정 스케쥴링
+
+def piecewise_constant_fn(epoch):
+    if epoch < 5:
+        return 0.01
+    elif epoch < 15:
+        return 0.005
+    else:
+        return 0.001
+
+성능 기반 스케쥴링을 위해 ReduceLROnPlateau 콜백 사용
+
+lr_scheduler = keras.callbacks.ReduceLROnPlateau(factor = 0.5, patience = 5)
+
+
+규제를 사용해 과대적합 피하기
+
+L1과 L2규제
+
+l2규제
+
+layer = keras.layes.Dense(100, activation = 'elu',
+                          kernel_initializer = 'he_normal',
+                          kernel_regularizer = keras.regularizers.l2(0.01))
+
+ l1, l2 규제 모두 사용하기
+
+layer = keras.layes.Dense(100, activation = 'elu',
+                          kernel_initializer = 'he_normal',
+                          kernel_regularizer = keras.regularizers.l1_l2(0.01, 0.01))
+
+python의 functools.partial()함수를 사용하여 기본 매개변수 값을 사용하여 함수 호출을 감싼다
+
+from functools import partial
+RegularizedDense = partial(keras.layers.Dense,
+                           activation = 'elu',
+                           kernel_initializer = 'he_normal',
+                           kernel_regularizer = keras.regularizers.l2(0.01))
+
+model = keras.models.Sequential([
+    keras.layers.Flatten(input_shape = [28, 28]),
+    RegularizedDense(300),
+    RegularizedDense(100),
+    RegularizedDense(10, activation = 'softmax',
+                     kernel_initializer = 'glorot_uniform'),
+])
+
+
+드롭아웃 :  훈련하는 동안 일부 입력을 랜덤하게 버리는 것
+
+model = keras.models.Sequential([
+    keras.layers.Flatten(input_shape = [28, 28]),
+    keras.layers.Dropout(rate = 0.2),
+    keras.layers.Dense(300, activation = 'elu',
+                       kernel_initializer = 'he_normal'),
+    keras.layers.Dropout(rate = 0.2),
+    keras.layers.Dense(100, activatio = 'elu',
+                       kernel_initializer = 'he_normal'),
+    keras.layers.Dropout(rate = 0.2),
+    keras.layers.Dense(10, activation = 'softmax')
+])
+
+몬테 카를로 드롭아웃
+
+MC 드롭아웃 :  모델의 불확실성을 더 잘 측정할 수 있다
+
+y_probas = np.stack([model(X_test_scaled, training = True)
+                     for sample in range(100)])
+y_proba = y_probas.mean(axis = 0)
+
+드롭아웃을 비활성화한 패션mnist 테스트 세트에 있는 첫 번째 샘플 모델 예측
+
+np.round(model.predict(X_test_scaled[:1]), 2)
+
+드롭아웃을 활성화하여 만든 예측
+
+np.round(y_probas[:1], 2)
+
+첫 번째 차원으로 평균을 낸 MC 드롭아웃의 예측
+
+np.round(y_proba[:1], 2)
+
+위의 확률 추정의 표준 분포 확인
+
+y_std = y_probas.std(axis = 0)
+np.round(y_std[:1], 2)
+
+정확도 확인
+
+accuracy = np.sum(y_pred == y_test) / len(y_test)
+print(accuracy)         # 0.8694
+
+Dropout층을 MCDropout 클래스로 바꾸기
+
+class MCDropout(keras.layers.Dropout):
+    def call(self, inputs):
+        return super().call(inputs, training = True)
+
+Max_norm regularizer
+
+맥스-노름 규제
+
+맥스-노름의 하이퍼파라미터인 r을 줄이면 규제의 양이 증가하여 과적합을 감소시키는데 도움이 된다
+
+불안정한 그래디언트 문제를 완화하는데 도움이 됨
+
+keras.layers.Dense(100, activation = 'elu',
+                   kernel_initializer = 'he_normal',
+                   kernel_constraint = keras.constraint.max_norm(1.))
+
+
+
